@@ -1,264 +1,281 @@
-const Emitter = require("../dist/emitter")
+const Emitter = require("../lib/emitter");
 
-describe("Emitter", function() {
-  it("invokes the observer when the named event is emitted until disposed", function() {
-    const emitter = new Emitter()
+describe("Emitter", function () {
+  afterEach(function () {
+    // The exception handlers and the dispatch they select live on the class, so
+    // a spec that leaves one registered would change how every later spec
+    // dispatches.
+    Emitter.exceptionHandlers.length = 0;
+    Emitter.dispatch = Emitter.simpleDispatch;
+  });
 
-    const fooEvents = []
-    const barEvents = []
+  it("invokes the observer when the named event is emitted until disposed", function () {
+    const emitter = new Emitter();
 
-    const sub1 = emitter.on("foo", value => fooEvents.push(["a", value]))
-    const sub2 = emitter.on("bar", value => barEvents.push(["b", value]))
-    const sub3 = emitter.preempt("bar", value => barEvents.push(["c", value]))
+    const fooEvents = [];
+    const barEvents = [];
 
-    emitter.emit("foo", 1)
-    emitter.emit("foo", 2)
-    emitter.emit("bar", 3)
+    const sub1 = emitter.on("foo", (value) => fooEvents.push(["a", value]));
+    const sub2 = emitter.on("bar", (value) => barEvents.push(["b", value]));
+    emitter.preempt("bar", (value) => barEvents.push(["c", value]));
 
-    sub1.dispose()
+    emitter.emit("foo", 1);
+    emitter.emit("foo", 2);
+    emitter.emit("bar", 3);
 
-    emitter.emit("foo", 4)
-    emitter.emit("bar", 5)
+    sub1.dispose();
 
-    sub2.dispose()
+    emitter.emit("foo", 4);
+    emitter.emit("bar", 5);
 
-    emitter.emit("bar", 6)
+    sub2.dispose();
 
-    expect(fooEvents).toEqual([["a", 1], ["a", 2]])
+    emitter.emit("bar", 6);
+
+    expect(fooEvents).toEqual([
+      ["a", 1],
+      ["a", 2],
+    ]);
     expect(barEvents).toEqual([
       ["c", 3],
       ["b", 3],
       ["c", 5],
       ["b", 5],
-      ["c", 6]
-    ])
-  })
+      ["c", 6],
+    ]);
+  });
 
-  it("throws an exception when subscribing with a callback that isn't a function", function() {
-    const emitter = new Emitter()
-    expect(() => emitter.on("foo", null)).toThrow()
-    expect(() => emitter.on("foo", "a")).toThrow()
-  })
+  it("throws an exception when subscribing with a callback that isn't a function", function () {
+    const emitter = new Emitter();
+    expect(() => emitter.on("foo", null)).toThrow();
+    expect(() => emitter.on("foo", "a")).toThrow();
+  });
 
-  it("can register a function more than once, and therefore will call it multiple times", function() {
+  it("throws an exception when subscribing on a disposed emitter", function () {
+    const emitter = new Emitter();
+    emitter.dispose();
+    expect(() => emitter.on("foo", function () {})).toThrowError("Emitter has been disposed");
+  });
+
+  it("can register a function more than once, and therefore will call it multiple times", function () {
     const emitter = new Emitter();
     let callCount = 0;
-    const fn = () => callCount++
+    const fn = () => callCount++;
 
-    emitter.on('foo', fn);
-    emitter.on('foo', fn);
-    emitter.emit('foo')
+    emitter.on("foo", fn);
+    emitter.on("foo", fn);
+    emitter.emit("foo");
 
     expect(callCount).toEqual(2);
-  })
+  });
 
-  it("allows all subsribers to be cleared out at once", function() {
-    const emitter = new Emitter()
-    const events = []
+  it("allows all subscribers to be cleared out at once", function () {
+    const emitter = new Emitter();
+    const events = [];
 
-    emitter.on("foo", value => events.push(["a", value]))
-    emitter.preempt("foo", value => events.push(["b", value]))
-    emitter.clear()
+    emitter.on("foo", (value) => events.push(["a", value]));
+    emitter.preempt("foo", (value) => events.push(["b", value]));
+    emitter.clear();
 
-    emitter.emit("foo", 1)
-    emitter.emit("foo", 2)
-    expect(events).toEqual([])
-  })
+    emitter.emit("foo", 1);
+    emitter.emit("foo", 2);
+    expect(events).toEqual([]);
+  });
 
-  it("allows the listeners to be inspected", function() {
-    const emitter = new Emitter()
+  it("does not call handlers added during an emit for that same emit", function () {
+    const emitter = new Emitter();
+    const events = [];
+    let added = false;
 
-    const disposable1 = emitter.on("foo", function() {})
-    expect(emitter.getEventNames()).toEqual(["foo"])
-    expect(emitter.listenerCountForEventName("foo")).toBe(1)
-    expect(emitter.listenerCountForEventName("bar")).toBe(0)
-    expect(emitter.getTotalListenerCount()).toBe(1)
+    emitter.on("foo", function () {
+      events.push("first");
+      if (!added) {
+        added = true;
+        emitter.on("foo", () => events.push("added-during-emit"));
+      }
+    });
 
-    const disposable2 = emitter.on("bar", function() {})
-    expect(emitter.getEventNames()).toEqual(["foo", "bar"])
-    expect(emitter.listenerCountForEventName("foo")).toBe(1)
-    expect(emitter.listenerCountForEventName("bar")).toBe(1)
-    expect(emitter.getTotalListenerCount()).toBe(2)
+    // The handler registered above joins the list, but not the copy this emit
+    // is already iterating.
+    emitter.emit("foo");
+    expect(events).toEqual(["first"]);
 
-    emitter.preempt("foo", function() {})
-    expect(emitter.getEventNames()).toEqual(["foo", "bar"])
-    expect(emitter.listenerCountForEventName("foo")).toBe(2)
-    expect(emitter.listenerCountForEventName("bar")).toBe(1)
-    expect(emitter.getTotalListenerCount()).toBe(3)
+    emitter.emit("foo");
+    expect(events).toEqual(["first", "first", "added-during-emit"]);
+  });
 
-    disposable1.dispose()
-    expect(emitter.getEventNames()).toEqual(["foo", "bar"])
-    expect(emitter.listenerCountForEventName("foo")).toBe(1)
-    expect(emitter.listenerCountForEventName("bar")).toBe(1)
-    expect(emitter.getTotalListenerCount()).toBe(2)
+  it("allows the listeners to be inspected", function () {
+    const emitter = new Emitter();
 
-    disposable2.dispose()
-    expect(emitter.getEventNames()).toEqual(["foo"])
-    expect(emitter.listenerCountForEventName("foo")).toBe(1)
-    expect(emitter.listenerCountForEventName("bar")).toBe(0)
-    expect(emitter.getTotalListenerCount()).toBe(1)
+    const disposable1 = emitter.on("foo", function () {});
+    expect(emitter.getEventNames()).toEqual(["foo"]);
+    expect(emitter.listenerCountForEventName("foo")).toBe(1);
+    expect(emitter.listenerCountForEventName("bar")).toBe(0);
+    expect(emitter.getTotalListenerCount()).toBe(1);
 
-    emitter.clear()
-    expect(emitter.getTotalListenerCount()).toBe(0)
-  })
+    const disposable2 = emitter.on("bar", function () {});
+    expect(emitter.getEventNames()).toEqual(["foo", "bar"]);
+    expect(emitter.listenerCountForEventName("foo")).toBe(1);
+    expect(emitter.listenerCountForEventName("bar")).toBe(1);
+    expect(emitter.getTotalListenerCount()).toBe(2);
 
-  describe("::once", function() {
-    it("only invokes the handler once", function() {
-      const emitter = new Emitter()
-      let firedCount = 0
-      emitter.once("foo", () => (firedCount += 1))
-      emitter.emit("foo")
-      emitter.emit("foo")
-      expect(firedCount).toBe(1)
-    })
+    emitter.preempt("foo", function () {});
+    expect(emitter.getEventNames()).toEqual(["foo", "bar"]);
+    expect(emitter.listenerCountForEventName("foo")).toBe(2);
+    expect(emitter.listenerCountForEventName("bar")).toBe(1);
+    expect(emitter.getTotalListenerCount()).toBe(3);
 
-    it("invokes the handler with the emitted value", function() {
-      const emitter = new Emitter()
-      let emittedValue = null
-      emitter.once("foo", value => (emittedValue = value))
-      emitter.emit("foo", "bar")
-      expect(emittedValue).toBe("bar")
-    })
-  })
+    disposable1.dispose();
+    expect(emitter.getEventNames()).toEqual(["foo", "bar"]);
+    expect(emitter.listenerCountForEventName("foo")).toBe(1);
+    expect(emitter.listenerCountForEventName("bar")).toBe(1);
+    expect(emitter.getTotalListenerCount()).toBe(2);
 
-  describe("dispose", function() {
-    it("disposes of all listeners", function() {
-      const emitter = new Emitter()
-      const disposable1 = emitter.on("foo", function() {})
-      const disposable2 = emitter.once("foo", function() {})
-      emitter.dispose()
-      expect(disposable1.disposed).toBe(true)
-      expect(disposable2.disposed).toBe(true)
-    })
+    disposable2.dispose();
+    expect(emitter.getEventNames()).toEqual(["foo"]);
+    expect(emitter.listenerCountForEventName("foo")).toBe(1);
+    expect(emitter.listenerCountForEventName("bar")).toBe(0);
+    expect(emitter.getTotalListenerCount()).toBe(1);
 
-    it("doesn't keep track of disposed disposables", function() {
-      const emitter = new Emitter()
-      const disposable = emitter.on("foo", function() {})
-      expect(emitter.subscriptions.disposables.size).toBe(1)
-      disposable.dispose()
-      expect(emitter.subscriptions.disposables.size).toBe(0)
-    })
-  })
+    emitter.clear();
+    expect(emitter.getTotalListenerCount()).toBe(0);
+  });
 
-  describe("when a handler throws an exception", function() {
-    describe("when no exception handlers are registered on Emitter", () =>
-      it("throws exceptions as normal, stopping subsequent handlers from firing", function() {
-        const emitter = new Emitter()
-        let handler2Fired = false
+  describe("::once", function () {
+    it("only invokes the handler once", function () {
+      const emitter = new Emitter();
+      let firedCount = 0;
+      emitter.once("foo", () => (firedCount += 1));
+      emitter.emit("foo");
+      emitter.emit("foo");
+      expect(firedCount).toBe(1);
+    });
 
-        emitter.on("foo", function() {
-          throw new Error()
-        })
-        emitter.on("foo", () => (handler2Fired = true))
+    it("invokes the handler with the emitted value", function () {
+      const emitter = new Emitter();
+      let emittedValue = null;
+      emitter.once("foo", (value) => (emittedValue = value));
+      emitter.emit("foo", "bar");
+      expect(emittedValue).toBe("bar");
+    });
+  });
 
-        expect(() => emitter.emit("foo")).toThrow()
-        expect(handler2Fired).toBe(false)
-      }))
+  describe("dispose", function () {
+    it("disposes of all listeners", function () {
+      const emitter = new Emitter();
+      const disposable1 = emitter.on("foo", function () {});
+      const disposable2 = emitter.once("foo", function () {});
+      emitter.dispose();
+      expect(disposable1.disposed).toBe(true);
+      expect(disposable2.disposed).toBe(true);
+    });
 
-    describe("when exception handlers are registered on Emitter", () =>
-      it("invokes the exception handlers in the order they were registered and continues to fire subsequent event handlers", function() {
-        const emitter = new Emitter()
-        let handler2Fired = false
+    it("doesn't keep track of disposed disposables", function () {
+      const emitter = new Emitter();
+      const disposable = emitter.on("foo", function () {});
+      expect(emitter.subscriptions.disposables.size).toBe(1);
+      disposable.dispose();
+      expect(emitter.subscriptions.disposables.size).toBe(0);
+    });
+  });
 
-        emitter.on("foo", function() {
-          throw new Error("bar")
-        })
-        emitter.on("foo", () => (handler2Fired = true))
+  describe("when a handler throws an exception", function () {
+    describe("when no exception handlers are registered on Emitter", function () {
+      it("throws exceptions as normal, stopping subsequent handlers from firing", function () {
+        const emitter = new Emitter();
+        let handler2Fired = false;
 
-        let errorHandlerInvocations = []
-        const disposable1 = Emitter.onEventHandlerException(function(error) {
-          expect(error.message).toBe("bar")
-          errorHandlerInvocations.push(1)
-        })
+        emitter.on("foo", function () {
+          throw new Error();
+        });
+        emitter.on("foo", () => (handler2Fired = true));
 
-        const disposable2 = Emitter.onEventHandlerException(function(error) {
-          expect(error.message).toBe("bar")
-          errorHandlerInvocations.push(2)
-        })
+        expect(() => emitter.emit("foo")).toThrow();
+        expect(handler2Fired).toBe(false);
+      });
+    });
 
-        emitter.emit("foo")
+    describe("when exception handlers are registered on Emitter", function () {
+      it("invokes the exception handlers in the order they were registered and continues to fire subsequent event handlers", function () {
+        const emitter = new Emitter();
+        let handler2Fired = false;
 
-        expect(errorHandlerInvocations).toEqual([1, 2])
-        expect(handler2Fired).toBe(true)
+        emitter.on("foo", function () {
+          throw new Error("bar");
+        });
+        emitter.on("foo", () => (handler2Fired = true));
 
-        errorHandlerInvocations = []
-        handler2Fired = false
+        let errorHandlerInvocations = [];
+        const disposable1 = Emitter.onEventHandlerException(function (error) {
+          expect(error.message).toBe("bar");
+          errorHandlerInvocations.push(1);
+        });
 
-        disposable1.dispose()
-        emitter.emit("foo")
-        expect(errorHandlerInvocations).toEqual([2])
-        expect(handler2Fired).toBe(true)
+        const disposable2 = Emitter.onEventHandlerException(function (error) {
+          expect(error.message).toBe("bar");
+          errorHandlerInvocations.push(2);
+        });
 
-        errorHandlerInvocations = []
-        handler2Fired = false
+        emitter.emit("foo");
 
-        disposable2.dispose()
-        expect(() => emitter.emit("foo")).toThrow()
-        expect(errorHandlerInvocations).toEqual([])
-        expect(handler2Fired).toBe(false)
-      }))
-  })
+        expect(errorHandlerInvocations).toEqual([1, 2]);
+        expect(handler2Fired).toBe(true);
 
-  describe("::emitAsync", function() {
-    it("resolves when all of the promises returned by handlers have resolved", function() {
-      const emitter = new Emitter()
+        errorHandlerInvocations = [];
+        handler2Fired = false;
 
-      let resolveHandler1 = null
-      let resolveHandler3 = null
-      const disposable1 = emitter.on(
-        "foo",
-        () =>
-          new Promise(function(resolve) {
-            return (resolveHandler1 = resolve)
-          })
-      )
-      const disposable2 = emitter.on("foo", function() {})
-      const disposable3 = emitter.on(
-        "foo",
-        () =>
-          new Promise(function(resolve) {
-            return (resolveHandler3 = resolve)
-          })
-      )
+        disposable1.dispose();
+        emitter.emit("foo");
+        expect(errorHandlerInvocations).toEqual([2]);
+        expect(handler2Fired).toBe(true);
 
-      const result = emitter.emitAsync("foo")
+        errorHandlerInvocations = [];
+        handler2Fired = false;
 
-      waitsFor(function(done) {
-        resolveHandler3()
-        resolveHandler1()
-        return result.then(function(result) {
-          expect(result).toBeUndefined()
-          done()
-        })
-      })
-    })
+        disposable2.dispose();
+        expect(() => emitter.emit("foo")).toThrow();
+        expect(errorHandlerInvocations).toEqual([]);
+        expect(handler2Fired).toBe(false);
+      });
+    });
+  });
 
-    it("rejects when any of the promises returned by handlers reject", function() {
-      const emitter = new Emitter()
+  describe("::emitAsync", function () {
+    it("resolves when all of the promises returned by handlers have resolved", async function () {
+      const emitter = new Emitter();
 
-      let rejectHandler1 = null
-      const disposable1 = emitter.on(
-        "foo",
-        () =>
-          new Promise(function(resolve, reject) {
-            return (rejectHandler1 = reject)
-          })
-      )
-      const disposable2 = emitter.on("foo", function() {})
-      const disposable3 = emitter.on(
-        "foo",
-        () => new Promise(function(resolve) {})
-      )
+      let resolveHandler1 = null;
+      let resolveHandler3 = null;
+      emitter.on("foo", () => new Promise((resolve) => (resolveHandler1 = resolve)));
+      emitter.on("foo", function () {});
+      emitter.on("foo", () => new Promise((resolve) => (resolveHandler3 = resolve)));
 
-      const result = emitter.emitAsync("foo")
+      const promise = emitter.emitAsync("foo");
 
-      waitsFor(function(done) {
-        rejectHandler1(new Error("Something bad happened"))
-        return result.catch(function(error) {
-          expect(error.message).toBe("Something bad happened")
-          done()
-        })
-      })
-    })
-  })
-})
+      resolveHandler3();
+      resolveHandler1();
+
+      await expectAsync(promise).toBeResolvedTo(undefined);
+    });
+
+    it("rejects when any of the promises returned by handlers reject", async function () {
+      const emitter = new Emitter();
+
+      let rejectHandler1 = null;
+      emitter.on("foo", () => new Promise((resolve, reject) => (rejectHandler1 = reject)));
+      emitter.on("foo", function () {});
+      emitter.on("foo", () => new Promise(function () {}));
+
+      const promise = emitter.emitAsync("foo");
+
+      rejectHandler1(new Error("Something bad happened"));
+
+      await expectAsync(promise).toBeRejectedWithError("Something bad happened");
+    });
+
+    it("resolves when the event has no handlers", async function () {
+      const emitter = new Emitter();
+      await expectAsync(emitter.emitAsync("nobody-listening")).toBeResolvedTo(undefined);
+    });
+  });
+});

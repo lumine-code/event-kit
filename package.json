@@ -1,28 +1,42 @@
 {
-  "name": "event-kit",
-  "version": "2.5.3",
-  "description": "Simple library for implementing and consuming evented APIs",
-  "main": "./dist/event-kit",
-  "scripts": {
-    "build": "cross-env BABEL_KEEP_MODULES=false babel lib --out-dir dist --delete-dir-on-start",
-    "docs": "joanna-tello -o api.json package.json lib",
-    "prepublish": "npm run build && npm run docs",
-    "test": "jasmine-focused --captureExceptions --forceexit spec"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/atom/event-kit.git"
-  },
-  "bugs": {
-    "url": "https://github.com/atom/event-kit/issues"
-  },
+  "name": "@lumine-code/event-kit",
+  "version": "1.0.0",
+  "description": "Provides Emitter, Disposable, and CompositeDisposable event primitives.",
   "license": "MIT",
+  "main": "./lib/event-kit.js",
+  "scripts": {
+    "test": "jasmine",
+    "lint": "eslint . --max-warnings 0 && prettier --check .",
+    "format": "prettier --write ."
+  },
+  "repository": "https://github.com/lumine-code/event-kit",
+  "bugs": "https://github.com/lumine-code/event-kit/issues",
+  "homepage": "https://github.com/lumine-code/event-kit/",
+  "author": "lumine-code",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "files": [
+    "lib"
+  ],
+  "keywords": [
+    "event-kit",
+    "emitter",
+    "disposable",
+    "subscription",
+    "events",
+    "lumine"
+  ],
   "devDependencies": {
-    "@babel/cli": "^7.12.10",
-    "@babel/core": "^7.12.10",
-    "babel-preset-atomic": "^3.0.1",
-    "cross-env": "^7.0.3",
-    "jasmine-focused": "^1.0.7",
-    "joanna": "https://github.com/aminya/joanna"
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.8.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-n": "^18.2.2",
+    "globals": "^17.9.0",
+    "jasmine": "^6.3.0",
+    "prettier": "^3.9.6"
   }
 }

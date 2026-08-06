@@ -1,83 +1,64 @@
-##### Atom and all repositories under Atom will be archived on December 15, 2022. Learn more in our [official announcement](https://github.blog/2022-06-08-sunsetting-atom/)
- # event-kit
-[![CI](https://github.com/atom/event-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/atom/event-kit/actions/workflows/ci.yml)
+# event-kit
 
-This is a simple library for implementing event subscription APIs.
+Provides Emitter, Disposable, and CompositeDisposable event primitives.
 
-## Implementing Event Subscription APIs
+These are the building blocks the editor and its packages use to expose evented
+APIs: a subscription hands back a `Disposable`, related subscriptions are grouped
+into a `CompositeDisposable`, and a class that wants to notify observers keeps an
+`Emitter`. Packages normally reach them through `require('atom')`, which
+re-exports all three.
+
+## Features
+
+- **Disposable**: wraps a disposal action that runs at most once, and dereferences it afterward.
+- **Composite disposal**: aggregates any number of disposables so a whole subscription group tears down together.
+- **Duck-typed contract**: `Disposable.isDisposable()` accepts any object with a `dispose()` method, so disposables cross package boundaries without sharing a class.
+- **Emitter**: registers handlers by event name and returns a disposable for each subscription.
+- **Ordered delivery**: `preempt()` puts a handler ahead of the ones already registered, and `once()` unsubscribes after the first call.
+- **Async emission**: `emitAsync()` resolves once every handler's returned promise has settled.
+- **Exception handling**: `Emitter.onEventHandlerException()` routes handler exceptions to registered observers instead of aborting the remaining handlers.
+
+## Installation
+
+```sh
+npm install @lumine-code/event-kit
+```
+
+## Usage
 
 ```js
-const {Emitter} = require('event-kit')
+const { Emitter, CompositeDisposable } = require("@lumine-code/event-kit");
 
 class User {
   constructor() {
-    this.emitter = new Emitter()
+    this.emitter = new Emitter();
   }
 
   onDidChangeName(callback) {
-    this.emitter.on('did-change-name', callback)
+    return this.emitter.on("did-change-name", callback);
   }
 
   setName(name) {
     if (name !== this.name) {
-      this.name = name
-      this.emitter.emit('did-change-name', name)
+      this.name = name;
+      this.emitter.emit("did-change-name", name);
     }
-
-    return this.name
+    return this.name;
   }
 
   destroy() {
-    this.emitter.dispose()
+    this.emitter.dispose();
   }
 }
+
+const subscriptions = new CompositeDisposable();
+const user = new User();
+subscriptions.add(user.onDidChangeName((name) => console.log(name)));
+
+// Unsubscribes every handler added to the composite.
+subscriptions.dispose();
 ```
 
-In the example above, we implement `::onDidChangeName` on the user object, which
-will register callbacks to be invoked whenever the user's name changes. To do
-so, we make use of an internal `Emitter` instance. We use `::on` to subscribe
-the given callback in `::onDidChangeName`, and `::emit` in `::setName` to notify
-subscribers. Finally, when the `User` instance is destroyed we call `::dispose`
-on the emitter to unsubscribe all subscribers.
+## Contributing
 
-## Consuming Event Subscription APIs
-
-`Emitter::on` returns a `Disposable` instance, which has a `::dispose` method.
-To unsubscribe, simply call dispose on the returned object.
-
-```js
-const subscription = user.onDidChangeName((name) => console.log(`My name is ${name}`))
-// Later, to unsubscribe...
-subscription.dispose()
-```
-
-You can also use `CompositeDisposable` to combine disposable instances together.
-
-```js
-const {CompositeDisposable} = require('event-kit')
-
-const subscriptions = new CompositeDisposable()
-subscriptions.add(user1.onDidChangeName((name) => console.log(`User 1: ${name}`))
-subscriptions.add(user2.onDidChangeName((name) => console.log(`User 2: ${name}`))
-
-// Later, to unsubscribe from *both*...
-subscriptions.dispose()
-```
-
-## Creating Your Own Disposables
-
-Disposables are convenient ways to represent a resource you will no longer
-need at some point. You can instantiate a disposable with an action to take when
-no longer needed.
-
-```js
-const {Disposable} = require('event-kit')
-
-const disposable = new Disposable(() => this.destroyResource())
-```
-
-### Using ES6 Code
-You can use the ES6 style classes from `lib` directory.
-```
-const {Disposable} = require('event-kit/lib/event-kit')
-```
+Got ideas to make this package better, found a bug, or want to help add new features? Just drop your thoughts on GitHub. Any feedback is welcome!
