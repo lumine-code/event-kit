@@ -5,7 +5,7 @@ Provides Emitter, Disposable, and CompositeDisposable event primitives.
 These are the building blocks the editor and its packages use to expose evented
 APIs: a subscription hands back a `Disposable`, related subscriptions are grouped
 into a `CompositeDisposable`, and a class that wants to notify observers keeps an
-`Emitter`. Packages normally reach them through `require('atom')`, which
+`Emitter`. Packages normally reach them through `require('lumine')`, which
 re-exports all three.
 
 ## Features
