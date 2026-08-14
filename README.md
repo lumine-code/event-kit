@@ -2,11 +2,11 @@
 
 Provides Emitter, Disposable, and CompositeDisposable event primitives.
 
-These are the building blocks the editor and its packages use to expose evented
+These are the building blocks applications and packages use to expose evented
 APIs: a subscription hands back a `Disposable`, related subscriptions are grouped
 into a `CompositeDisposable`, and a class that wants to notify observers keeps an
-`Emitter`. Packages normally reach them through `require('lumine')`, which
-re-exports all three.
+`Emitter`. CommonJS remains the default entry point; the package also provides
+native browser-safe ES modules.
 
 ## Features
 
@@ -25,6 +25,8 @@ npm install @lumine-code/event-kit
 ```
 
 ## Usage
+
+CommonJS:
 
 ```js
 const { Emitter, CompositeDisposable } = require("@lumine-code/event-kit");
@@ -57,6 +59,12 @@ subscriptions.add(user.onDidChangeName((name) => console.log(name)));
 
 // Unsubscribes every handler added to the composite.
 subscriptions.dispose();
+```
+
+ES modules expose the same API:
+
+```js
+import { CompositeDisposable, Emitter } from "@lumine-code/event-kit";
 ```
 
 ## Contributing

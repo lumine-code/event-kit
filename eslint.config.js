@@ -22,6 +22,12 @@ module.exports = [
     },
   },
   {
+    files: ["lib/**/*.mjs"],
+    languageOptions: {
+      sourceType: "module",
+    },
+  },
+  {
     // The lint configuration itself requires devDependencies; it never ships.
     files: ["eslint.config.js"],
     rules: {

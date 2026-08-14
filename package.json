@@ -4,6 +4,21 @@
   "description": "Provides Emitter, Disposable, and CompositeDisposable event primitives.",
   "license": "MIT",
   "main": "./lib/event-kit.js",
+  "exports": {
+    ".": {
+      "require": "./lib/event-kit.js",
+      "import": "./lib/event-kit.mjs",
+      "default": "./lib/event-kit.js"
+    },
+    "./lib/*.js": "./lib/*.js",
+    "./lib/*.mjs": "./lib/*.mjs",
+    "./lib/*": {
+      "require": "./lib/*.js",
+      "import": "./lib/*.mjs",
+      "default": "./lib/*.js"
+    },
+    "./package.json": "./package.json"
+  },
   "scripts": {
     "test": "jasmine",
     "lint": "eslint . --max-warnings 0 && prettier --check .",
