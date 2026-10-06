@@ -101,6 +101,60 @@ describe("module compatibility", () => {
         expect(subscriptions.disposables).toBeNull();
       });
 
+      it("completes group cleanup before rethrowing an unchanged disposal failure", () => {
+        const failure = Object.freeze(new Error("Resource failed"));
+        const calls = [];
+        const first = new eventKit.Disposable(() => {
+          calls.push("first");
+          expect(subscriptions.disposables).toBeNull();
+          subscriptions.dispose();
+          throw failure;
+        });
+        const last = new eventKit.Disposable(() => calls.push("last"));
+        const subscriptions = new eventKit.CompositeDisposable(first, last);
+
+        let actual;
+        try {
+          subscriptions.dispose();
+        } catch (error) {
+          actual = error;
+        }
+        expect(actual).toBe(failure);
+
+        expect(calls).toEqual(["first", "last"]);
+        expect(first.disposed).toBeTrue();
+        expect(last.disposed).toBeTrue();
+        expect(subscriptions.disposables).toBeNull();
+        expect(() => subscriptions.dispose()).not.toThrow();
+      });
+
+      it("reports multiple group cleanup errors in order with the first as cause", () => {
+        const firstFailure = Object.freeze(new Error("First failed"));
+        const lastFailure = new Error("Last failed");
+        const clean = jasmine.createSpy("clean remaining resource");
+        const subscriptions = new eventKit.CompositeDisposable(
+          new eventKit.Disposable(() => {
+            throw firstFailure;
+          }),
+          new eventKit.Disposable(clean),
+          new eventKit.Disposable(() => {
+            throw lastFailure;
+          }),
+        );
+        let failure;
+        try {
+          subscriptions.dispose();
+        } catch (error) {
+          failure = error;
+        }
+
+        expect(failure instanceof AggregateError).toBeTrue();
+        expect(failure.errors).toEqual([firstFailure, lastFailure]);
+        expect(failure.cause).toBe(firstFailure);
+        expect(clean).toHaveBeenCalledTimes(1);
+        expect(subscriptions.disposables).toBeNull();
+      });
+
       it("delivers ordered synchronous events and disposable subscriptions", () => {
         const emitter = new eventKit.Emitter();
         const received = [];
