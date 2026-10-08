@@ -2,6 +2,8 @@
 
 Provides Emitter, Disposable, and CompositeDisposable event primitives.
 
+Fork of [pulsar-edit/event-kit](https://github.com/pulsar-edit/event-kit).
+
 These are the building blocks applications and packages use to expose evented APIs: a subscription hands back a `Disposable`, related subscriptions are grouped into a `CompositeDisposable`, and a class that wants to notify observers keeps an `Emitter`. CommonJS remains the default entry point; the package also provides native browser-safe ES modules.
 
 ## Features
