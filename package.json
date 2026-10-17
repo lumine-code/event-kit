@@ -35,7 +35,8 @@
     "node": ">=24"
   },
   "files": [
-    "lib"
+    "lib",
+    "THIRD_PARTY_NOTICES"
   ],
   "keywords": [
     "event-kit",
